@@ -125,6 +125,13 @@ swift build
 - [x] Audio/Video synchronization validated
 - [x] Separate reassemblers for video and audio streams
 
+### Phase 2.5: Buffer + NDI|HX (🎯 IN PROGRESS)
+- [ ] Configurable buffer delay (`--buffer <ms>`)
+- [ ] Ring buffer for decoded frames with timestamps
+- [ ] NDI|HX output format (`--output-format hx264|hx265`)
+- [ ] NDI Advanced SDK integration for compressed output
+- [ ] Skip decode path for H.264 passthrough
+
 ### Phase 3: WAN Networking
 - [ ] STUN client implementation
 - [ ] Hole Punch technique
