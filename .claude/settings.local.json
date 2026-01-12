@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift build:*)",
+      "Bash(.build/debug/ndi-bridge:*)",
+      "Bash(DYLD_LIBRARY_PATH=\"/Library/NDI SDK for Apple/lib/macOS\" .build/debug/ndi-bridge:*)",
+      "Bash(chmod:*)",
+      "Bash(./run.sh:*)",
+      "Bash(timeout 5 ./run.sh:*)",
+      "Bash(lsof:*)",
+      "Bash(pkill:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+# Build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+*.dSYM
+
+# IDE
+.idea/
+*.xcworkspace
+xcuserdata/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*~

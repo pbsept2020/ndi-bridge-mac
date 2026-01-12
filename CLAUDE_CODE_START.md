@@ -1,0 +1,144 @@
+# 🚀 NDI Bridge Mac - État du Projet
+
+## 📊 Progression
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1: POC Vidéo | ✅ DONE | Streaming vidéo localhost fonctionnel |
+| Phase 2: Audio | ✅ DONE | Audio PCM sync avec vidéo |
+| Phase 3: WAN | 🎯 NEXT | STUN/TURN, NAT traversal |
+| Phase 4: UI | ⏳ TODO | SwiftUI app |
+
+---
+
+## 📁 STRUCTURE ACTUELLE
+
+```
+/Users/bessette_nouveau_macbook_pro/Projets/ndi-bridge-mac/
+├── Package.swift                    ✅ Swift Package config
+├── run.sh                           ✅ Script de lancement
+├── Sources/
+│   ├── NDIBridge/
+│   │   ├── main.swift              ✅ CLI (discover, host, join)
+│   │   ├── Host/                   ✅ Mode Sender
+│   │   │   ├── HostMode.swift      ✅ Orchestrateur (vidéo + audio)
+│   │   │   ├── NDIReceiver.swift   ✅ Capture NDI (vidéo + audio)
+│   │   │   ├── VideoEncoder.swift  ✅ H.264 hardware
+│   │   │   └── NetworkSender.swift ✅ UDP transmission (vidéo + audio)
+│   │   ├── Join/                   ✅ Mode Receiver
+│   │   │   ├── JoinMode.swift      ✅ Orchestrateur (vidéo + audio)
+│   │   │   ├── NetworkReceiver.swift ✅ UDP reception + reassembly
+│   │   │   ├── VideoDecoder.swift  ✅ H.264 decoding
+│   │   │   └── NDISender.swift     ✅ NDI output (vidéo + audio)
+│   │   └── Common/
+│   │       └── BridgeLogger.swift  ✅ Logging
+│   └── CNDIWrapper/                ✅ C bridge NDI SDK
+│       ├── include/ndi_wrapper.h   ✅ Vidéo + Audio structures
+│       └── ndi_wrapper.c           ✅ Vidéo + Audio functions
+├── Tests/
+├── Resources/
+└── Docs/
+    └── ARCHITECTURE.md
+```
+
+---
+
+## 🎯 UTILISATION
+
+```bash
+cd /Users/bessette_nouveau_macbook_pro/Projets/ndi-bridge-mac
+
+# Compiler
+swift build
+
+# Découvrir sources NDI
+./run.sh discover
+
+# Host mode (sender) - auto-sélection
+./run.sh host --auto
+
+# Host mode - source spécifique
+./run.sh host --source "OBS"
+
+# Host mode - bitrate custom
+./run.sh host --auto --bitrate 12
+
+# Join mode (receiver)
+./run.sh join --name "NDI Bridge Output"
+```
+
+---
+
+## ✅ PHASE 2 : AUDIO (COMPLÈTE)
+
+### Implémentation réalisée
+
+1. **CNDIWrapper** - Structures et fonctions audio
+   - `NDIBridgeAudioFrame` (structure 64 bytes)
+   - `ndi_audio_frame_create/destroy/init`
+   - `ndi_receiver_free_audio`
+   - `ndi_sender_send_audio`
+   - Format: PCM 32-bit float planar (`NDIlib_FourCC_audio_type_FLTP`)
+
+2. **Packet Header v2** (38 bytes)
+   - `mediaType`: 0=video, 1=audio
+   - `sourceId`: 0 (préparé pour multi-source)
+   - `sampleRate`: taux d'échantillonnage (48000 Hz)
+   - `channels`: nombre de canaux (2)
+   - Backward compatible avec v1
+
+3. **NDIReceiver** - Capture audio NDI
+   - Traite `case 2` (NDIlib_frame_type_audio) dans captureLoop
+   - `processAudioFrame()` extrait données PCM
+   - Délègue via `didReceiveAudioFrame`
+
+4. **NetworkSender** - Transmission audio
+   - `sendAudio(data:timestamp:sampleRate:channels:)`
+   - Fragmentation UDP si nécessaire
+   - Header v2 avec métadonnées audio
+
+5. **NetworkReceiver** - Réception et routage
+   - `FrameReassembler` avec support audio
+   - Reassemblers séparés pour vidéo et audio
+   - Parse `mediaType` et route vers delegate approprié
+
+6. **NDISender** - Sortie audio NDI
+   - `sendAudio(data:timestamp:sampleRate:channels:)`
+   - Format PCM 32-bit float planar
+
+### Résultat
+- ✅ Audio synchronisé avec vidéo
+- ✅ Pas de latence perceptible sur localhost
+- ⚠️ Légers artefacts vidéo (compression H.264)
+- ⚠️ Légère différence colorimétrique (à investiguer)
+
+---
+
+## 🎯 PHASE 3 : WAN (PROCHAINE)
+
+### Objectifs
+- STUN client pour découverte IP publique
+- Hole punching UDP
+- Encodage AAC pour audio (réduire bande passante)
+- Signaling backend (AWS Lambda)
+
+### Considérations
+- Reassembler tolérant aux paquets tardifs (implémenté, peut être réactivé)
+- Augmenter buffers UDP système si packet loss
+
+---
+
+## 📋 PRÉREQUIS
+
+- macOS 13+ Apple Silicon
+- Xcode 15+
+- NDI SDK 6: `/Library/NDI SDK for Apple/`
+- NDI Tools (pour tester)
+
+---
+
+## 🔗 RÉFÉRENCES
+
+- [VideoToolbox WWDC21](https://developer.apple.com/videos/play/wwdc2021/10158/)
+- [Network.framework WWDC18](https://developer.apple.com/videos/play/wwdc2018/715/)
+- [NDI SDK Docs](https://docs.ndi.video/all/developing-with-ndi/sdk)
