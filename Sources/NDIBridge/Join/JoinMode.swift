@@ -14,6 +14,7 @@ struct JoinModeConfig {
     var ndiOutputName: String = "NDI Bridge Output"
     var outputWidth: Int32 = 1920
     var outputHeight: Int32 = 1080
+    var bufferMs: Int = 0  // 0 = temps réel, >0 = délai en ms
 }
 
 /// Error types for join mode
@@ -44,6 +45,11 @@ final class JoinMode: NetworkReceiverDelegate, VideoDecoderDelegate, NDISenderDe
     private var config: JoinModeConfig
     private var isRunning = false
 
+    // Buffer for delayed playback
+    private var frameBuffer: FrameBuffer?
+    private var outputTimer: DispatchSourceTimer?
+    private let outputQueue = DispatchQueue(label: "com.ndibridge.output", qos: .userInteractive)
+
     // Statistics
     private var startTime: Date?
     private var framesOutput: UInt64 = 0
@@ -71,6 +77,11 @@ final class JoinMode: NetworkReceiverDelegate, VideoDecoderDelegate, NDISenderDe
         logger.info("Starting JOIN MODE (Receiver)", subsystem: .join)
         logger.info("Listen port: \(config.listenPort)", subsystem: .join)
         logger.info("NDI output: '\(config.ndiOutputName)'", subsystem: .join)
+        if config.bufferMs > 0 {
+            logger.info("Buffer: \(config.bufferMs)ms delay", subsystem: .join)
+        } else {
+            logger.info("Buffer: disabled (real-time)", subsystem: .join)
+        }
         logger.info("═══════════════════════════════════════════════════════", subsystem: .join)
 
         // Step 1: Setup decoder
@@ -105,11 +116,60 @@ final class JoinMode: NetworkReceiverDelegate, VideoDecoderDelegate, NDISenderDe
         isRunning = true
         startTime = Date()
 
+        // Initialize buffer if configured
+        if config.bufferMs > 0 {
+            frameBuffer = FrameBuffer(bufferMs: config.bufferMs)
+            startOutputTimer()
+            logger.success("Buffer enabled: \(config.bufferMs)ms delay", subsystem: .join)
+        }
+
         logger.success("═══════════════════════════════════════════════════════", subsystem: .join)
         logger.success("JOIN MODE STARTED", subsystem: .join)
         logger.success("Waiting for incoming stream on port \(config.listenPort)...", subsystem: .join)
         logger.success("NDI output available as '\(config.ndiOutputName)'", subsystem: .join)
+        if config.bufferMs > 0 {
+            logger.success("Buffer delay: \(config.bufferMs)ms", subsystem: .join)
+        }
         logger.success("═══════════════════════════════════════════════════════", subsystem: .join)
+    }
+
+    /// Start the output timer for buffered playback
+    private func startOutputTimer() {
+        outputTimer = DispatchSource.makeTimerSource(queue: outputQueue)
+        outputTimer?.schedule(deadline: .now(), repeating: .milliseconds(1))
+        outputTimer?.setEventHandler { [weak self] in
+            self?.processBufferedFrames()
+        }
+        outputTimer?.resume()
+    }
+
+    /// Process buffered frames and send them to NDI when ready
+    private func processBufferedFrames() {
+        guard let buffer = frameBuffer else { return }
+
+        // Emit ready video frames
+        for frame in buffer.dequeueReadyVideo() {
+            do {
+                try ndiSender.send(pixelBuffer: frame.pixelBuffer, timestamp: frame.timestamp)
+                framesOutput += 1
+            } catch {
+                logger.error("Buffer video send error: \(error.localizedDescription)", subsystem: .join)
+            }
+        }
+
+        // Emit ready audio frames
+        for frame in buffer.dequeueReadyAudio() {
+            do {
+                try ndiSender.sendAudio(
+                    data: frame.data,
+                    timestamp: frame.timestamp,
+                    sampleRate: frame.sampleRate,
+                    channels: frame.channels
+                )
+            } catch {
+                logger.error("Buffer audio send error: \(error.localizedDescription)", subsystem: .join)
+            }
+        }
     }
 
     /// Stop join mode
@@ -119,6 +179,13 @@ final class JoinMode: NetworkReceiverDelegate, VideoDecoderDelegate, NDISenderDe
         logger.info("Stopping Join Mode...", subsystem: .join)
 
         isRunning = false
+
+        // Stop buffer timer
+        outputTimer?.cancel()
+        outputTimer = nil
+        frameBuffer?.flush()
+        frameBuffer = nil
+
         networkReceiver.stop()
         decoder.invalidate()
         ndiSender.stop()
@@ -147,11 +214,16 @@ final class JoinMode: NetworkReceiverDelegate, VideoDecoderDelegate, NDISenderDe
     }
 
     func networkReceiver(_ receiver: NetworkReceiver, didReceiveAudioFrame data: Data, timestamp: UInt64, sampleRate: Int32, channels: Int32) {
-        // Send audio directly to NDI output (no decoding needed for PCM)
-        do {
-            try ndiSender.sendAudio(data: data, timestamp: timestamp, sampleRate: sampleRate, channels: channels)
-        } catch {
-            logger.error("NDI audio send error: \(error.localizedDescription)", subsystem: .join)
+        if let buffer = frameBuffer {
+            // Buffered mode: enqueue for delayed playback
+            buffer.enqueueAudio(data, timestamp: timestamp, sampleRate: sampleRate, channels: channels)
+        } else {
+            // Real-time mode: send directly to NDI output
+            do {
+                try ndiSender.sendAudio(data: data, timestamp: timestamp, sampleRate: sampleRate, channels: channels)
+            } catch {
+                logger.error("NDI audio send error: \(error.localizedDescription)", subsystem: .join)
+            }
         }
     }
 
@@ -166,13 +238,17 @@ final class JoinMode: NetworkReceiverDelegate, VideoDecoderDelegate, NDISenderDe
     // MARK: - VideoDecoderDelegate
 
     func videoDecoder(_ decoder: VideoDecoder, didDecodeFrame pixelBuffer: CVPixelBuffer, timestamp: UInt64) {
-        framesOutput += 1
-
-        // Send decoded frame to NDI output
-        do {
-            try ndiSender.send(pixelBuffer: pixelBuffer, timestamp: timestamp)
-        } catch {
-            logger.error("NDI send error: \(error.localizedDescription)", subsystem: .join)
+        if let buffer = frameBuffer {
+            // Buffered mode: enqueue for delayed playback
+            buffer.enqueueVideo(pixelBuffer, timestamp: timestamp)
+        } else {
+            // Real-time mode: send directly to NDI output
+            framesOutput += 1
+            do {
+                try ndiSender.send(pixelBuffer: pixelBuffer, timestamp: timestamp)
+            } catch {
+                logger.error("NDI send error: \(error.localizedDescription)", subsystem: .join)
+            }
         }
     }
 

@@ -82,6 +82,9 @@ swift build
 
 # Join mode - custom port
 ./run.sh join --port 5991 --name "Cam 2"
+
+# Join mode - with buffer for stable playback (500ms delay)
+./run.sh join --name "Buffered Output" --buffer 500
 ```
 
 ### Test Localhost Loop
@@ -125,14 +128,12 @@ swift build
 - [x] Audio/Video synchronization validated
 - [x] Separate reassemblers for video and audio streams
 
-### Phase 2.5: Buffer + NDI|HX (🎯 IN PROGRESS)
+### Phase 3: Buffer Configurable (🎯 IN PROGRESS)
 - [ ] Configurable buffer delay (`--buffer <ms>`)
 - [ ] Ring buffer for decoded frames with timestamps
-- [ ] NDI|HX output format (`--output-format hx264|hx265`)
-- [ ] NDI Advanced SDK integration for compressed output
-- [ ] Skip decode path for H.264 passthrough
+- [ ] Timer-based frame emission for smooth playback
 
-### Phase 3: WAN Networking
+### Phase 4: WAN Networking
 - [ ] STUN client implementation
 - [ ] Hole Punch technique
 - [ ] Cross-network testing (WiFi ↔ 4G)
@@ -140,14 +141,21 @@ swift build
 - [ ] AWS Lambda signaling backend
 - [ ] Session management
 
-### Phase 4: UI
+### Phase 5: UI
 - [ ] SwiftUI app structure
 - [ ] Source selection interface
 - [ ] Connection management
 - [ ] Real-time statistics display
 - [ ] Settings panel
 
-### Phase 5: Beta
+### Phase 6: NDI|HX Output (🔒 BLOCKED)
+- [ ] NDI|HX output format (`--output-format hx264|hx265`)
+- [ ] NDI Advanced SDK integration for compressed output
+- [ ] Skip decode path for H.264 passthrough
+
+> ⚠️ **Note:** NDI|HX output requires the NDI Advanced SDK which is not freely available. See `Docs/FUTURE_OPTIMIZATIONS.md` for details.
+
+### Phase 7: Beta
 - [ ] Error handling improvements
 - [ ] Recovery mechanisms
 - [ ] TestFlight distribution

@@ -145,6 +145,12 @@ struct NDIBridgeApp {
                     i += 1
                 }
 
+            case "--buffer", "-b":
+                if i + 1 < arguments.count, let ms = Int(arguments[i + 1]) {
+                    config.bufferMs = max(0, ms)  // Ensure non-negative
+                    i += 1
+                }
+
             default:
                 break
             }
@@ -220,6 +226,7 @@ struct NDIBridgeApp {
         print("Join Mode Options:")
         print("  --port, -p <port>                Listen port (default: 5990)")
         print("  --name, -n <name>                NDI output name (default: 'NDI Bridge Output')")
+        print("  --buffer, -b <ms>                Buffer delay in milliseconds (default: 0 = real-time)")
         print("")
         print("General Options:")
         print("  --help, -h                       Show this help")
@@ -240,6 +247,9 @@ struct NDIBridgeApp {
         print("")
         print("  # Join mode - receive and output as NDI")
         print("  ndi-bridge join --name \"Remote Camera\"")
+        print("")
+        print("  # Join mode - with 500ms buffer for stable playback")
+        print("  ndi-bridge join --name \"Buffered Output\" --buffer 500")
         print("")
         print("  # Discover NDI sources")
         print("  ndi-bridge discover")
