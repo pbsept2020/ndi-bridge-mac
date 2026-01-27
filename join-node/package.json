@@ -1,0 +1,18 @@
+{
+  "name": "ndi-bridge-join",
+  "version": "1.0.0",
+  "description": "NDI Bridge Receiver for Windows - Receives H.264 stream and outputs NDI",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "grandiose": "0.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["ndi", "video", "streaming", "bridge"],
+  "author": "Pierre Bessette",
+  "license": "MIT"
+}

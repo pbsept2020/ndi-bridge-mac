@@ -20,3 +20,6 @@ xcuserdata/
 # Temporary files
 *.tmp
 *~
+
+# Archives
+*.zip
